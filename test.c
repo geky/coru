@@ -14,7 +14,7 @@ void test_count(void *p) {
 }
 
 int main() {
-    int err = coru_create(&test_coru, test_count, (void*)0x11223344, 512*1024);
+    int err = coru_create(&test_coru, test_count, (void*)0x11223344, 4096);
     assert(!err);
 
     for (int i = 0; i < 15; i++) {
@@ -22,5 +22,6 @@ int main() {
         printf("main %d\n", err);
     }
 
+    coru_destroy(&test_coru);
     return 0;
 }

@@ -27,7 +27,10 @@ typedef struct coru {
     // stack information
     void *sp;
 
-    // buffer if allocated
+    // canary location, NULL if not supported
+    uintptr_t *canary;
+
+    // buffer if allocated, NULL if user provided
     void *allocated;
 } coru_t;
 

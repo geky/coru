@@ -8,7 +8,7 @@
 //
 // Note that the active coroutine's stack pointer is swapped with
 // its parent's while running
-static coru_t *coru_parent;
+static coru_t *coru_active = NULL;
 
 //// Platform specific functions, implemented below ////
 
@@ -20,8 +20,12 @@ static coru_t *coru_parent;
 // 2. After the callback cb returns, the coroutine should then transfer control
 //    to coru_halt, which does not return.
 //
+// After coru_plat_init, sp should contain the stack pointer for the new
+// coroutine. Also, canary can be set to the end of the stack to enable best
+// effort stack checking. Highly suggested.
+//
 // Any other platform initializations or assertions can be carried out here.
-int coru_plat_init(void **sp,
+int coru_plat_init(void **sp, uintptr_t **canary,
         void (*cb)(void*), void *data,
         void *buffer, size_t size);
 
@@ -36,7 +40,7 @@ int coru_plat_init(void **sp,
 // 4. Return arg from temporary register
 //
 // Looking at the i386 implementation may be helpful
-void *coru_plat_yield(void **sp, void *arg);
+uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
 
 
 //// Coroutine operations ////
@@ -55,8 +59,19 @@ int coru_create(coru_t *coru, void (*cb)(void*), void *data, size_t size) {
 int coru_create_inplace(coru_t *coru,
         void (*cb)(void*), void *data,
         void *buffer, size_t size) {
+    coru->canary = NULL;
     coru->allocated = NULL;
-    return coru_plat_init(&coru->sp, cb, data, buffer, size);
+
+    int err = coru_plat_init(&coru->sp, &coru->canary, cb, data, buffer, size);
+    if (err) {
+        return err;
+    }
+
+    if (coru->canary) {
+        *coru->canary = (uintptr_t)0x636f7275;
+    }
+
+    return 0;
 }
 
 void coru_destroy(coru_t *coru) {
@@ -64,22 +79,36 @@ void coru_destroy(coru_t *coru) {
 }
 
 int coru_resume(coru_t *coru) {
-    coru_t *prev = coru_parent;
-    coru_parent = coru;
-    int state = (int)coru_plat_yield(&coru->sp, (void*)0);
-    coru_parent = prev;
+    // push previous coroutine's info on the current stack
+    coru_t *prev = coru_active;
+    coru_active = coru;
+    // yield into coroutine
+    int state = coru_plat_yield(&coru->sp, 0);
+    // restore previous coroutine's info
+    coru_active = prev;
     return state;
 }
 
 void coru_yield(void) {
-    coru_plat_yield(&coru_parent->sp, (void*)CORU_ERR_AGAIN);
+    // do nothing if we are not a coroutine, this lets yield be used in
+    // shared libraries
+    if (!coru_active) {
+        return;
+    }
+
+    // check canary, if this fails a stack overflow occured
+    assert(!coru_active->canary ||
+            *coru_active->canary == (uintptr_t)0x636f7275);
+
+    // yield out of coroutine
+    coru_plat_yield(&coru_active->sp, CORU_ERR_AGAIN);
 }
 
 // terminate a coroutine, not public but must be called below
 // when a coroutine ends
 void coru_halt(void) {
     while (true) {
-        coru_plat_yield(&coru_parent->sp, (void*)0);
+        coru_plat_yield(&coru_active->sp, 0);
     }
 }
 
@@ -88,7 +117,7 @@ void coru_halt(void) {
 
 #ifdef __i386__
 // Setup stack
-int coru_plat_init(void **psp,
+int coru_plat_init(void **psp, uintptr_t **pcanary,
         void (*cb)(void*), void *data,
         void *buffer, size_t size) {
     // TODO do this different? match equeue?
@@ -104,12 +133,14 @@ int coru_plat_init(void **psp,
     sp[-3] = (uint32_t)cb;          // ret to cb(data)
     sp[-2] = (uint32_t)coru_halt;   // ret to coru_halt()
     sp[-1] = (uint32_t)data;        // arg to cb(data)
+
     *psp = &sp[-7];
+    *pcanary = &sp[-size/sizeof(uint32_t)];
     return 0;
 }
 
 // Swap stacks
-extern void *coru_plat_yield(void **sp, void *arg);
+extern uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
 __asm__ (
     ".globl coru_plat_yield \n"
     "coru_plat_yield: \n"
