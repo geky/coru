@@ -115,14 +115,14 @@ void coru_halt(void) {
 
 //// Platform specific operations ////
 
-#ifdef __i386__
+#if defined(__i386__)
 // Setup stack
 int coru_plat_init(void **psp, uintptr_t **pcanary,
         void (*cb)(void*), void *data,
         void *buffer, size_t size) {
+    // check that stack is aligned
     // TODO do this different? match equeue?
-    assert((uint32_t)buffer % 4 == 0 && (uint32_t)size % 4 == 0);
-    assert(size > 8*sizeof(uint32_t));
+    assert((uint32_t)buffer % 4 == 0 && size % 4 == 0);
     uint32_t *sp = (uint32_t*)((char*)buffer + size);
 
     // setup stack
@@ -134,6 +134,7 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
     sp[-2] = (uint32_t)coru_halt;   // ret to coru_halt()
     sp[-1] = (uint32_t)data;        // arg to cb(data)
 
+    // setup stack pointer and canary
     *psp = &sp[-7];
     *pcanary = &sp[-size/sizeof(uint32_t)];
     return 0;
@@ -144,17 +145,76 @@ extern uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
 __asm__ (
     ".globl coru_plat_yield \n"
     "coru_plat_yield: \n"
-    "\t mov 8(%esp), %eax \n"
-    "\t mov 4(%esp), %edx \n"
-    "\t push %ebp \n"
+    "\t mov 8(%esp), %eax \n"   // save arg to eax, return this later
+    "\t mov 4(%esp), %edx \n"   // load new esp to edx
+    "\t push %ebp \n"           // push callee saved registers
     "\t push %ebx \n"
     "\t push %esi \n"
     "\t push %edi \n"
-    "\t xchg %esp, (%edx) \n"
-    "\t pop %edi \n"
+    "\t xchg %esp, (%edx) \n"   // swap stack
+    "\t pop %edi \n"            // pop callee saved registers
     "\t pop %esi \n"
     "\t pop %ebx \n"
     "\t pop %ebp \n"
+    "\t ret \n"                 // return eax
+);
+#elif defined(__amd64__)
+// Here we need a prologue to get data to the callback when
+// we startup a coroutine.
+extern void coru_plat_prologue(void);
+__asm__ (
+    ".globl coru_plat_prologue \n"
+    "coru_plat_prologue: \n"
+    "\t pop %rdi \n"
+    "\t ret \n"
+);
+
+// Setup stack
+int coru_plat_init(void **psp, uintptr_t **pcanary,
+        void (*cb)(void*), void *data,
+        void *buffer, size_t size) {
+    // check that stack is aligned
+    // TODO do this different? match equeue?
+    assert((uint64_t)buffer % 4 == 0 && size % 4 == 0);
+    uint64_t *sp = (uint64_t*)((char*)buffer + size);
+
+    // setup stack
+    sp[-10] = 0;                            // r15
+    sp[-9 ] = 0;                            // r14
+    sp[-8 ] = 0;                            // r13
+    sp[-7 ] = 0;                            // r12
+    sp[-6 ] = 0;                            // rbx
+    sp[-5 ] = 0;                            // rbp (frame pointer)
+    sp[-4 ] = (uint64_t)coru_plat_prologue; // prologue to tie cb+data together
+    sp[-3 ] = (uint64_t)data;               // arg to cb(data)
+    sp[-2 ] = (uint64_t)cb;                 // ret to cb(data)
+    sp[-1 ] = (uint64_t)coru_halt;          // ret to coru_halt()
+
+    // setup stack pointer and canary
+    *psp = &sp[-10];
+    *pcanary = &sp[-size/sizeof(uint64_t)];
+    return 0;
+}
+
+// Swap stacks
+extern uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
+__asm__ (
+    ".globl coru_plat_yield \n"
+    "coru_plat_yield: \n"
+    "\t push %rbp \n"           // push callee saved registers
+    "\t push %rbx \n"
+    "\t push %r12 \n"
+    "\t push %r13 \n"
+    "\t push %r14 \n"
+    "\t push %r15 \n"
+    "\t xchg %rsp, (%rdi) \n"   // swap stack
+    "\t pop %r15 \n"           // pop callee saved registers
+    "\t pop %r14 \n"
+    "\t pop %r13 \n"
+    "\t pop %r12 \n"
+    "\t pop %rbx \n"
+    "\t pop %rbp \n"
+    "\t mov %rsi, %rax \n"        // return arg
     "\t ret \n"
 );
 #else
