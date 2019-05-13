@@ -4,15 +4,18 @@
 #ifndef CORU_H
 #define CORU_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // TODO open questions
 // - Should callbacks be able to return errors?
 // - Is EAGAIN/0 appropriate for coru_resume?
 // - Can coru_yield return errors?
 // - What to do if we thread_resume(ourselves)?
 
-#include "stdlib.h"
-#include "stdint.h"
-#include "stdbool.h"
+#include "coru_util.h"
+
 
 // Possible error codes, these are negative to allow
 // valid positive return values
@@ -24,14 +27,9 @@ enum coru_error {
 };
 
 typedef struct coru {
-    // stack information
-    void *sp;
-
-    // canary location, NULL if not supported
-    uintptr_t *canary;
-
-    // buffer if allocated, NULL if user provided
-    void *allocated;
+    void *sp;           // stack information
+    uintptr_t *canary;  // canary location, NULL if not supported
+    void *allocated;    // buffer if allocated, NULL if user provided
 } coru_t;
 
 
@@ -57,6 +55,14 @@ void coru_destroy(coru_t *coru);
 int coru_resume(coru_t *coru);
 
 // Yields from inside a running coroutine.
+//
+// Note if not in coroutine this is a noop, this allows yields to be used in
+// functions shared between coroutine and non-coroutine code.
 void coru_yield(void);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
