@@ -19,7 +19,7 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
         void *buffer, size_t size) {
     // check that stack is aligned
     // TODO do this different? match equeue?
-    assert((uint32_t)buffer % 4 == 0 && size % 4 == 0);
+    CORU_ASSERT((uint32_t)buffer % 4 == 0 && size % 4 == 0);
     uint32_t *sp = (uint32_t*)((char*)buffer + size);
 
     // setup stack
@@ -75,7 +75,7 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
         void *buffer, size_t size) {
     // check that stack is aligned
     // TODO do this different? match equeue?
-    assert((uint64_t)buffer % 4 == 0 && size % 4 == 0);
+    CORU_ASSERT((uint64_t)buffer % 4 == 0 && size % 4 == 0);
     uint64_t *sp = (uint64_t*)((char*)buffer + size);
 
     // setup stack
@@ -139,7 +139,7 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
         void *buffer, size_t size) {
     // check that stack is aligned
     // TODO do this different? match equeue?
-    assert((uint32_t)buffer % 4 == 0 && size % 4 == 0);
+    CORU_ASSERT((uint32_t)buffer % 4 == 0 && size % 4 == 0);
     uint32_t *sp = (uint32_t*)((char*)buffer + size);
 
     // setup stack

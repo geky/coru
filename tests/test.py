@@ -77,7 +77,7 @@ def execute(expect_error=False):
                 "error" if expect_error else "no error", proc.returncode),
             "stderr:\n%s\n" % stderr)
 
-    if stdout != expect:
+    if expect and stdout != expect:
         fail("Output does not match expected output",
             "expected:\n%s\n" % expect +
             "actual:\n%s\n" % stdout)

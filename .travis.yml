@@ -1,0 +1,94 @@
+# Environment variables
+env:
+  global:
+    - CFLAGS=-Werror
+
+# Common test script
+script:
+  # run tests
+  - make test
+
+  # find code size with smallest configuration
+  - make clean size
+        CFLAGS+="-DCORU_NO_ASSERT"
+        | tee sizes
+
+  # update status if we succeeded, compare with master if possible
+  - |
+    if [ "$TRAVIS_TEST_RESULT" -eq 0 ]
+    then
+        CURR=$(tail -n1 sizes | awk '{print $1}')
+        PREV=$(curl -u "$GEKY_BOT_STATUSES" https://api.github.com/repos/$TRAVIS_REPO_SLUG/status/master \
+            | jq -re "select(.sha != \"$TRAVIS_COMMIT\")
+                | .statuses[] | select(.context == \"$STAGE/$NAME\").description
+                | capture(\"code size is (?<size>[0-9]+)\").size" \
+            || echo 0)
+        STATUS="Passed, code size is ${CURR}B"
+        if [ "$PREV" -ne 0 ]
+        then
+            STATUS="$STATUS ($(python -c "print '%+.2f' % (100*($CURR-$PREV)/$PREV.0)")%)"
+        fi
+    fi
+
+# CI matrix, separate job for each supported platform
+jobs:
+  include:
+    # x86 64-bit
+    - stage: test
+      env:
+        - STAGE=test
+        - NAME=coru-x86-64
+
+    # x86 32-bit
+    - stage: test
+      env:
+        - STAGE=test
+        - NAME=coru-x86-32
+        - CC="gcc -m32"
+      install:
+        - sudo apt-get install gcc-multilib
+
+    # arm thumb
+    - stage: test
+      env:
+        - STAGE=test
+        - NAME=coru-arm
+        - CC="arm-linux-gnueabi-gcc --static -mthumb"
+        - EXEC="qemu-arm"
+      install:
+        - sudo apt-get install gcc-arm-linux-gnueabi qemu-user
+
+# Manage statuses
+before_install:
+  - |
+    curl -u "$GEKY_BOT_STATUSES" -X POST \
+        https://api.github.com/repos/$TRAVIS_REPO_SLUG/statuses/${TRAVIS_PULL_REQUEST_SHA:-$TRAVIS_COMMIT} \
+        -d "{
+            \"context\": \"$STAGE/$NAME\",
+            \"state\": \"pending\",
+            \"description\": \"${STATUS:-In progress}\",
+            \"target_url\": \"https://travis-ci.org/$TRAVIS_REPO_SLUG/jobs/$TRAVIS_JOB_ID\"
+        }"
+after_failure:
+  - |
+    curl -u "$GEKY_BOT_STATUSES" -X POST \
+        https://api.github.com/repos/$TRAVIS_REPO_SLUG/statuses/${TRAVIS_PULL_REQUEST_SHA:-$TRAVIS_COMMIT} \
+        -d "{
+            \"context\": \"$STAGE/$NAME\",
+            \"state\": \"failure\",
+            \"description\": \"${STATUS:-Failed}\",
+            \"target_url\": \"https://travis-ci.org/$TRAVIS_REPO_SLUG/jobs/$TRAVIS_JOB_ID\"
+        }"
+after_success:
+  - |
+    curl -u "$GEKY_BOT_STATUSES" -X POST \
+        https://api.github.com/repos/$TRAVIS_REPO_SLUG/statuses/${TRAVIS_PULL_REQUEST_SHA:-$TRAVIS_COMMIT} \
+        -d "{
+            \"context\": \"$STAGE/$NAME\",
+            \"state\": \"success\",
+            \"description\": \"${STATUS:-Passed}\",
+            \"target_url\": \"https://travis-ci.org/$TRAVIS_REPO_SLUG/jobs/$TRAVIS_JOB_ID\"
+        }"
+# Job control
+stages:
+    - name: test
