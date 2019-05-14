@@ -44,6 +44,8 @@ void coru_destroy(coru_t *coru) {
 }
 
 int coru_resume(coru_t *coru) {
+    // we should not be resuming ourselves
+    assert(coru != coru_active);
     // push previous coroutine's info on the current stack
     coru_t *prev = coru_active;
     coru_active = coru;

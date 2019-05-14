@@ -7,7 +7,7 @@ CC ?= gcc
 AR ?= ar
 SIZE ?= size
 
-SRC += $(wildcard *.c emubd/*.c)
+SRC += $(wildcard *.c)
 OBJ := $(SRC:.c=.o)
 DEP := $(SRC:.c=.d)
 ASM := $(SRC:.c=.s)
@@ -39,17 +39,16 @@ size: $(OBJ)
 	$(SIZE) -t $^
 
 .SUFFIXES:
-test: test_format test_dirs test_files test_seek test_truncate \
-	test_entries test_interspersed test_alloc test_paths test_attrs \
-	test_move test_orphan test_corrupt
+test: \
+		test_simple \
+		test_params \
+		test_corners \
+		test_overflow \
+		test_parallel \
+		test_nested
 	@rm test.c
 test_%: tests/test_%.sh
-
-ifdef QUIET
-	@./$< | sed -n '/^[-=]/p'
-else
-	./$<
-endif
+	@/bin/bash $<
 
 -include $(DEP)
 
