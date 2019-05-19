@@ -1,6 +1,9 @@
 /*
  * coru utilities and config
  *
+ * Copyright (c) 2019 Christopher Haster
+ * Distributed under the MIT license
+ *
  * Can be overridden by users with their own configuration by defining
  * CORU_CONFIG as a header file (-DCORU_CONFIG=coru_config.h)
  *

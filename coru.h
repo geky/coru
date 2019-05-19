@@ -1,5 +1,8 @@
 /*
- * coro, a small coroutine library
+ * coru, a small coroutine library
+ *
+ * Copyright (c) 2019 Christopher Haster
+ * Distributed under the MIT license
  */
 #ifndef CORU_H
 #define CORU_H

@@ -1,6 +1,9 @@
 /*
  * coru, platform specific functions
  *
+ * Copyright (c) 2019 Christopher Haster
+ * Distributed under the MIT license
+ *
  * Each platform needs a small bit of custom code for coroutines because
  * of the stack manipulation. Fortunately it only takes two functions. These
  * should be added to coru_platform.c.

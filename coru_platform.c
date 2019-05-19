@@ -1,3 +1,9 @@
+/*
+ * coru, platform specific functions
+ *
+ * Copyright (c) 2019 Christopher Haster
+ * Distributed under the MIT license
+ */
 #include "coru.h"
 #include "coru_platform.h"
 
