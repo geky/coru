@@ -3,7 +3,6 @@
 #include "coru.h"
 #include <stdio.h>
 #include <stdarg.h>
-#include <errno.h>
 
 uintmax_t test_res;
 
@@ -35,9 +34,6 @@ void test_expect(const char *fmt, ...) {{
 }}
 
 void test(void);
-
-{test}
-
 int main() {{
     // create special descriptor for expect traffic
     test_expect_f = fdopen(3, "w");
@@ -45,3 +41,7 @@ int main() {{
     // run tests
     test();
 }}
+
+/// test code ///
+
+{test}

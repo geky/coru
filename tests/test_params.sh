@@ -17,7 +17,7 @@ tests/test.py << TEST
         coru_yield();
     }
 
-    void test() {
+    void test(void) {
         coru_create(&coru, count, NULL, 8192) => 0;
         coru_resume(&coru) => CORU_ERR_AGAIN;
         test_expect("hey\n");
@@ -44,7 +44,7 @@ tests/test.py << TEST
         coru_yield();
     }
 
-    void test() {
+    void test(void) {
         int param = 0;
         coru_create(&coru, count, &param, 8192) => 0;
         param = 1;
@@ -76,7 +76,7 @@ tests/test.py << TEST
         coru_yield();
     }
 
-    void test() {
+    void test(void) {
         coru_create_inplace(&coru, count, NULL, buffer, 8192) => 0;
         coru_resume(&coru) => CORU_ERR_AGAIN;
         test_expect("hey\n");
@@ -104,7 +104,7 @@ tests/test.py << TEST
         coru_yield();
     }
 
-    void test() {
+    void test(void) {
         int param = 0;
         coru_create_inplace(&coru, count, &param, buffer, 8192) => 0;
         param = 1;

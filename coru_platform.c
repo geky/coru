@@ -32,7 +32,7 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
     sp[-7] = 0;                     // edi
     sp[-6] = 0;                     // esi
     sp[-5] = 0;                     // ebx
-    sp[-4] = 0;                     // ebp (frame pointer)
+    sp[-4] = 0;                     // ebp
     sp[-3] = (uint32_t)cb;          // ret to cb(data)
     sp[-2] = (uint32_t)coru_halt;   // ret to coru_halt()
     sp[-1] = (uint32_t)data;        // arg to cb(data)
@@ -44,7 +44,7 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
 }
 
 // Swap stacks
-extern uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
+uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
 __asm__ (
     ".globl coru_plat_yield \n"
     "coru_plat_yield: \n"
@@ -67,12 +67,12 @@ __asm__ (
 
 // Here we need a prologue to get data to the callback when
 // we startup a coroutine.
-extern void coru_plat_prologue(void);
+void coru_plat_prologue(void);
 __asm__ (
     ".globl coru_plat_prologue \n"
     "coru_plat_prologue: \n"
-    "\t pop %rdi \n"
-    "\t ret \n"
+    "\t mov %r13, %rdi \n"  // tail call cb(data)
+    "\t jmp *%r12 \n"
 );
 
 // Setup stack
@@ -85,41 +85,39 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
     uint64_t *sp = (uint64_t*)((char*)buffer + size);
 
     // setup stack
-    sp[-10] = 0;                            // r15
-    sp[-9 ] = 0;                            // r14
-    sp[-8 ] = 0;                            // r13
-    sp[-7 ] = 0;                            // r12
-    sp[-6 ] = 0;                            // rbx
-    sp[-5 ] = 0;                            // rbp (frame pointer)
-    sp[-4 ] = (uint64_t)coru_plat_prologue; // prologue to tie cb+data together
-    sp[-3 ] = (uint64_t)data;               // arg to cb(data)
-    sp[-2 ] = (uint64_t)cb;                 // ret to cb(data)
-    sp[-1 ] = (uint64_t)coru_halt;          // ret to coru_halt()
+    sp[-8] = 0;                             // rbx
+    sp[-7] = 0;                             // rbp
+    sp[-6] = (uint64_t)cb;                  // r12
+    sp[-5] = (uint64_t)data;                // r13
+    sp[-4] = 0;                             // r14
+    sp[-3] = 0;                             // r15
+    sp[-2] = (uint64_t)coru_plat_prologue;  // ret to coru_plat_prologue()
+    sp[-1] = (uint64_t)coru_halt;           // ret to coru_halt()
 
     // setup stack pointer and canary
-    *psp = &sp[-10];
+    *psp = &sp[-8];
     *pcanary = &sp[-size/sizeof(uint64_t)];
     return 0;
 }
 
 // Swap stacks
-extern uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
+uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
 __asm__ (
     ".globl coru_plat_yield \n"
     "coru_plat_yield: \n"
-    "\t push %rbp \n"           // push callee saved registers
-    "\t push %rbx \n"
-    "\t push %r12 \n"
-    "\t push %r13 \n"
+    "\t push %r15 \n"           // push callee saved registers
     "\t push %r14 \n"
-    "\t push %r15 \n"
+    "\t push %r13 \n"
+    "\t push %r12 \n"
+    "\t push %rbp \n"
+    "\t push %rbx \n"
     "\t xchg %rsp, (%rdi) \n"   // swap stack
-    "\t pop %r15 \n"            // pop callee saved registers
-    "\t pop %r14 \n"
-    "\t pop %r13 \n"
-    "\t pop %r12 \n"
-    "\t pop %rbx \n"
+    "\t pop %rbx \n"            // pop callee saved registers
     "\t pop %rbp \n"
+    "\t pop %r12 \n"
+    "\t pop %r13 \n"
+    "\t pop %r14 \n"
+    "\t pop %r15 \n"
     "\t mov %rsi, %rax \n"      // return arg
     "\t ret \n"
 );
@@ -129,14 +127,14 @@ __asm__ (
 
 // Here we need a prologue to get both data and coru_halt
 // into the appropriate registers.
-extern void coru_plat_prologue(void);
+void coru_plat_prologue(void);
 __asm__ (
     ".thumb_func \n"
     ".global coru_plat_prologue \n"
     "coru_plat_prologue: \n"
-    "\t pop {r0,r1,r2} \n"
-    "\t mov lr, r2 \n"
-    "\t bx r1 \n"
+    "\t mov lr, r6 \n"      // setup lr to ret to coru_halt()
+    "\t mov r0, r5 \n"      // tail call cb(data)
+    "\t bx r4 \n"
 );
 
 // Setup stack
@@ -149,27 +147,24 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
     uint32_t *sp = (uint32_t*)((char*)buffer + size);
 
     // setup stack
-    sp[-12] = 0;                            // r8
-    sp[-11] = 0;                            // r9
-    sp[-10] = 0;                            // r10
-    sp[-9 ] = 0;                            // r11
-    sp[-8 ] = 0;                            // r4
-    sp[-7 ] = 0;                            // r5
-    sp[-6 ] = 0;                            // r6
-    sp[-5 ] = 0;                            // r7
-    sp[-4 ] = (uint32_t)coru_plat_prologue; // prologue to tie things together
-    sp[-3 ] = (uint32_t)data;               // arg to callback (r0)
-    sp[-2 ] = (uint32_t)cb;                 // callback (r1)
-    sp[-1 ] = (uint32_t)coru_halt;          // coru_halt (r2)
+    sp[-9] = 0;                             // r8
+    sp[-8] = 0;                             // r9
+    sp[-7] = 0;                             // r10
+    sp[-6] = 0;                             // r11
+    sp[-5] = (uint32_t)cb;                  // r4
+    sp[-4] = (uint32_t)data;                // r5
+    sp[-3] = (uint32_t)coru_halt;           // r6
+    sp[-2] = 0;                             // r7
+    sp[-1] = (uint32_t)coru_plat_prologue;  // ret to coru_plat_prologue
 
     // setup stack pointer and canary
-    *psp = &sp[-12];
+    *psp = &sp[-9];
     *pcanary = &sp[-size/sizeof(uint32_t)];
     return 0;
 }
 
 // Swap stacks
-extern uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
+uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
 __asm__ (
     ".thumb_func \n"
     ".global coru_plat_yield \n"
@@ -198,18 +193,18 @@ __asm__ (
 
 // Here we need a prologue to get both data and coru_halt
 // into the appropriate registers.
-extern void coru_plat_prologue(void);
+void coru_plat_prologue(void);
 __asm__ (
     ".globl coru_plat_prologue \n"
     "coru_plat_prologue: \n"
-    "\t move $ra, $s0 \n"       // setup $ra to return to core_halt()
+    "\t move $ra, $s2 \n"       // setup $ra to return to core_halt()
     "\t addiu $sp, $sp, -4 \n"  // tail call cb(data)
     "\t move $a0, $s1 \n"
-    "\t j $s2 \n"
+    "\t j $s0 \n"
 );
 
 // get $gp register which is used for position-independent code
-extern uint32_t coru_plat_getgp(void);
+uint32_t coru_plat_getgp(void);
 __asm__ (
     ".globl coru_plat_getgp \n"
     "coru_plat_getgp: \n"
@@ -226,9 +221,9 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
     uint32_t *sp = (uint32_t*)((char*)buffer + size);
 
     // setup stack
-    sp[-11] = (uint32_t)coru_halt;          // $s0
+    sp[-11] = (uint32_t)cb;                 // $s0
     sp[-10] = (uint32_t)data;               // $s1
-    sp[-9 ] = (uint32_t)cb;                 // $s2
+    sp[-9 ] = (uint32_t)coru_halt;          // $s2
     sp[-8 ] = 0;                            // $s3
     sp[-7 ] = 0;                            // $s4
     sp[-6 ] = 0;                            // $s5
@@ -245,7 +240,7 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
 }
 
 // Swap stacks
-extern uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
+uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
 __asm__ (
     ".globl coru_plat_yield \n"
     "coru_plat_yield: \n"

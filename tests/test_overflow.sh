@@ -13,7 +13,7 @@ tests/test.py -e << TEST
         coru_yield();
     }
 
-    void test() {
+    void test(void) {
         coru_create(&coru, recurse, NULL, 8192) => 0;
 
         for (int i = 0; i < 1024; i++) {

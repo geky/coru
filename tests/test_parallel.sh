@@ -16,7 +16,7 @@ tests/test.py << TEST
         }
     }
 
-    void test() {
+    void test(void) {
         for (int j = 0; j < $1; j++) {
             coru_create(&coru[j], count, (void*)(intptr_t)j, 8192) => 0;
         }

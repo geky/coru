@@ -30,7 +30,7 @@ tests/test.py << TEST
         }
     }
 
-    void test() {
+    void test(void) {
         coru_create(&coru[$1-1], count, (void*)(intptr_t)($1-1), 8192) => 0;
 
         for (int i = 0; i < 10; i++) {

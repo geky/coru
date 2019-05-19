@@ -15,7 +15,7 @@ tests/test.py << TEST
         }
     }
 
-    void test() {
+    void test(void) {
         coru_create(&coru, count, NULL, 8192) => 0;
 
         for (int i = 0; i < 10; i++) {
