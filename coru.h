@@ -11,12 +11,6 @@
 extern "C" {
 #endif
 
-// TODO open questions
-// - Should callbacks be able to return errors?
-// - Is EAGAIN/0 appropriate for coru_resume?
-// - Can coru_yield return errors?
-// - What to do if we thread_resume(ourselves)?
-
 #include "coru_util.h"
 
 
