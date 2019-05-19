@@ -58,6 +58,18 @@ jobs:
       install:
         - sudo apt-get install gcc-arm-linux-gnueabi qemu-user
 
+    # mips
+    - stage: test
+      env:
+        - STAGE=test
+        - NAME=coru-mips
+        - CC="mips-linux-gnu-gcc --static"
+        - EXEC="qemu-mips"
+      install:
+        - sudo add-apt-repository -y "deb http://archive.ubuntu.com/ubuntu/ xenial main universe"
+        - sudo apt-get -qq update
+        - sudo apt-get install gcc-mips-linux-gnu qemu-user
+
 # Manage statuses
 before_install:
   - |

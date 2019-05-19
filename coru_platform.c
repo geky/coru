@@ -193,6 +193,93 @@ __asm__ (
     "\t pop {r4,r5,r6,r7,pc} \n"
 );
 
+// MIPS
+#elif defined(__mips__)
+
+// Here we need a prologue to get both data and coru_halt
+// into the appropriate registers.
+extern void coru_plat_prologue(void);
+__asm__ (
+    ".globl coru_plat_prologue \n"
+    "coru_plat_prologue: \n"
+    "\t move $ra, $s0 \n"       // setup $ra to return to core_halt()
+    "\t addiu $sp, $sp, -4 \n"  // tail call cb(data)
+    "\t move $a0, $s1 \n"
+    "\t j $s2 \n"
+);
+
+// get $gp register which is used for position-independent code
+extern uint32_t coru_plat_getgp(void);
+__asm__ (
+    ".globl coru_plat_getgp \n"
+    "coru_plat_getgp: \n"
+    "\t move $v0, $gp \n"
+    "\t j $ra \n"
+);
+
+int coru_plat_init(void **psp, uintptr_t **pcanary,
+        void (*cb)(void*), void *data,
+        void *buffer, size_t size) {
+    // check that stack is aligned
+    // TODO do this different? match equeue?
+    CORU_ASSERT((uint32_t)buffer % 4 == 0 && size % 4 == 0);
+    uint32_t *sp = (uint32_t*)((char*)buffer + size);
+
+    // setup stack
+    sp[-11] = (uint32_t)coru_halt;          // $s0
+    sp[-10] = (uint32_t)data;               // $s1
+    sp[-9 ] = (uint32_t)cb;                 // $s2
+    sp[-8 ] = 0;                            // $s3
+    sp[-7 ] = 0;                            // $s4
+    sp[-6 ] = 0;                            // $s5
+    sp[-5 ] = 0;                            // $s6
+    sp[-4 ] = 0;                            // $s7
+    sp[-3 ] = coru_plat_getgp();            // $gp
+    sp[-2 ] = 0;                            // $fp
+    sp[-1 ] = (uint32_t)coru_plat_prologue; // $ra
+
+    // setup stack pointer and canary
+    *psp = &sp[-11];
+    *pcanary = &sp[-size/sizeof(uint32_t)];
+    return 0;
+}
+
+// Swap stacks
+extern uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
+__asm__ (
+    ".globl coru_plat_yield \n"
+    "coru_plat_yield: \n"
+    "\t addiu $sp, $sp, -44 \n" // push callee saved registers
+    "\t sw $s0,  0($sp) \n"
+    "\t sw $s1,  4($sp) \n"
+    "\t sw $s2,  8($sp) \n"
+    "\t sw $s3, 12($sp) \n"
+    "\t sw $s4, 16($sp) \n"
+    "\t sw $s5, 20($sp) \n"
+    "\t sw $s6, 24($sp) \n"
+    "\t sw $s7, 28($sp) \n"
+    "\t sw $gp, 32($sp) \n"
+    "\t sw $fp, 36($sp) \n"
+    "\t sw $ra, 40($sp) \n"
+    "\t lw $t0, ($a0) \n"       // swap stack
+    "\t sw $sp, ($a0) \n"
+    "\t move $sp, $t0 \n"
+    "\t lw $s0,  0($sp) \n"     // pop callee saved registers
+    "\t lw $s1,  4($sp) \n"
+    "\t lw $s2,  8($sp) \n"
+    "\t lw $s3, 12($sp) \n"
+    "\t lw $s4, 16($sp) \n"
+    "\t lw $s5, 20($sp) \n"
+    "\t lw $s6, 24($sp) \n"
+    "\t lw $s7, 28($sp) \n"
+    "\t lw $gp, 32($sp) \n"
+    "\t lw $fp, 36($sp) \n"
+    "\t lw $ra, 40($sp) \n"
+    "\t addiu $sp, $sp, 44 \n"
+    "\t move $v0, $a1 \n"       // return arg
+    "\t j $ra \n"
+);
+
 #else
 #error "Unknown platform! Please update coru_platform.c"
 #endif
