@@ -200,15 +200,6 @@ __asm__ (
     "\t j $s0 \n"
 );
 
-// get $gp register which is used for position-independent code
-uint32_t coru_plat_getgp(void);
-__asm__ (
-    ".globl coru_plat_getgp \n"
-    "coru_plat_getgp: \n"
-    "\t move $v0, $gp \n"
-    "\t j $ra \n"
-);
-
 int coru_plat_init(void **psp, uintptr_t **pcanary,
         void (*cb)(void*), void *data,
         void *buffer, size_t size) {
@@ -217,20 +208,19 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
     uint32_t *sp = (uint32_t*)((char*)buffer + size);
 
     // setup stack
-    sp[-11] = (uint32_t)cb;                 // $s0
-    sp[-10] = (uint32_t)data;               // $s1
-    sp[-9 ] = (uint32_t)coru_halt;          // $s2
-    sp[-8 ] = 0;                            // $s3
-    sp[-7 ] = 0;                            // $s4
-    sp[-6 ] = 0;                            // $s5
-    sp[-5 ] = 0;                            // $s6
-    sp[-4 ] = 0;                            // $s7
-    sp[-3 ] = coru_plat_getgp();            // $gp
+    sp[-10] = (uint32_t)cb;                 // $s0
+    sp[-9 ] = (uint32_t)data;               // $s1
+    sp[-8 ] = (uint32_t)coru_halt;          // $s2
+    sp[-7 ] = 0;                            // $s3
+    sp[-6 ] = 0;                            // $s4
+    sp[-5 ] = 0;                            // $s5
+    sp[-4 ] = 0;                            // $s6
+    sp[-3 ] = 0;                            // $s7
     sp[-2 ] = 0;                            // $fp
     sp[-1 ] = (uint32_t)coru_plat_prologue; // $ra
 
     // setup stack pointer and canary
-    *psp = &sp[-11];
+    *psp = &sp[-10];
     *pcanary = &sp[-size/sizeof(uint32_t)];
     return 0;
 }
@@ -240,7 +230,7 @@ uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
 __asm__ (
     ".globl coru_plat_yield \n"
     "coru_plat_yield: \n"
-    "\t addiu $sp, $sp, -44 \n" // push callee saved registers
+    "\t addiu $sp, $sp, -40 \n" // push callee saved registers
     "\t sw $s0,  0($sp) \n"
     "\t sw $s1,  4($sp) \n"
     "\t sw $s2,  8($sp) \n"
@@ -249,9 +239,8 @@ __asm__ (
     "\t sw $s5, 20($sp) \n"
     "\t sw $s6, 24($sp) \n"
     "\t sw $s7, 28($sp) \n"
-    "\t sw $gp, 32($sp) \n"
-    "\t sw $fp, 36($sp) \n"
-    "\t sw $ra, 40($sp) \n"
+    "\t sw $fp, 32($sp) \n"
+    "\t sw $ra, 36($sp) \n"
     "\t lw $t0, ($a0) \n"       // swap stack
     "\t sw $sp, ($a0) \n"
     "\t move $sp, $t0 \n"
@@ -263,10 +252,9 @@ __asm__ (
     "\t lw $s5, 20($sp) \n"
     "\t lw $s6, 24($sp) \n"
     "\t lw $s7, 28($sp) \n"
-    "\t lw $gp, 32($sp) \n"
-    "\t lw $fp, 36($sp) \n"
-    "\t lw $ra, 40($sp) \n"
-    "\t addiu $sp, $sp, 44 \n"
+    "\t lw $fp, 32($sp) \n"
+    "\t lw $ra, 36($sp) \n"
+    "\t addiu $sp, $sp, 40 \n"
     "\t move $v0, $a1 \n"       // return arg
     "\t j $ra \n"
 );
