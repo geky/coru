@@ -156,7 +156,7 @@ int coru_plat_init(void **psp, uintptr_t **pcanary,
 
     // setup stack pointer and canary
     *psp = &sp[-9];
-    *pcanary = &sp[-size/sizeof(uint32_t)];
+    *pcanary = (uintptr_t *)&sp[-size/sizeof(uint32_t)];
     return 0;
 }
 
