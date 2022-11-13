@@ -185,6 +185,89 @@ __asm__ (
     "\t pop {r4,r5,r6,r7,pc} \n"
 );
 
+// ARM 64-bit (Aarch64)
+#elif defined(__aarch64__)
+
+// Here we need a prologue to get both data and coru_halt
+// into the appropriate registers.
+void coru_plat_prologue(void);
+__asm__ (
+    ".global coru_plat_prologue \n"
+    "coru_plat_prologue: \n"
+    "\t mov lr, x6 \n"      // setup lr to ret to coru_halt()
+    "\t mov x0, x5 \n"      // tail call cb(data)
+    "\t br x4 \n"
+);
+
+// Setup stack
+int coru_plat_init(void **psp, uintptr_t **pcanary,
+        void (*cb)(void*), void *data,
+        void *buffer, size_t size) {
+    // check that stack is aligned
+    CORU_ASSERT((uint64_t)buffer % 16 == 0 && size % 16 == 0);
+    uint64_t *sp = (uint64_t*)((char*)buffer + size);
+
+    // setup stack
+    sp[-20] = 0;                            // x18
+    sp[-19] = 0;                            // x19
+    sp[-18] = 0;                            // x20
+    sp[-17] = 0;                            // x21
+    sp[-16] = 0;                            // x22
+    sp[-15] = 0;                            // x23
+    sp[-14] = 0;                            // x24
+    sp[-13] = 0;                            // x25
+    sp[-12] = 0;                            // x26
+    sp[-11] = 0;                            // x27
+    sp[-10] = 0;                            // x28
+    sp[-9] = 0;                             // x29
+    sp[-8] = 0;                             // x1
+    sp[-7] = 0;                             // x2
+    sp[-6] = 0;                             // x3
+    sp[-5] = (uint64_t)cb;                  // x4
+    sp[-4] = (uint64_t)data;                // x5
+    sp[-3] = (uint64_t)coru_halt;           // x6
+    sp[-2] = 0;                             // x7
+    sp[-1] = (uint64_t)coru_plat_prologue;  // ret to coru_plat_prologue
+
+    // setup stack pointer and canary
+    *psp = &sp[-20];
+    *pcanary = &sp[-size/sizeof(uint64_t)];
+    return 0;
+}
+
+// Swap stacks
+uintptr_t coru_plat_yield(void **sp, uintptr_t arg);
+__asm__ (
+    ".global coru_plat_yield \n"
+    "coru_plat_yield: \n"
+    "\t stp x7, lr, [sp, #-16]! \n"     // push callee saved registers, lr and x7-x1
+    "\t stp x5, x6, [sp, #-16]! \n"
+    "\t stp x3, x4, [sp, #-16]! \n"
+    "\t stp x1, x2, [sp, #-16]! \n"
+    "\t stp x28, x29, [sp, #-16]! \n"   // save x29-x18
+    "\t stp x26, x27, [sp, #-16]! \n"
+    "\t stp x24, x25, [sp, #-16]! \n"
+    "\t stp x22, x23, [sp, #-16]! \n"
+    "\t stp x20, x21, [sp, #-16]! \n"
+    "\t stp x18, x19, [sp, #-16]! \n"
+    "\t mov x2, sp \n"                  // swap stack, takes several instructions
+    "\t ldr x3, [x0] \n"                // here because can't load/store sp
+    "\t str x2, [x0] \n"
+    "\t mov sp, x3 \n"
+    "\t mov x0, x1 \n"                  // return arg
+    "\t ldp x18, x19, [sp], #16 \n"     // pop swap tasks callee saved registers and return addr
+    "\t ldp x20, x21, [sp], #16 \n"
+    "\t ldp x22, x23, [sp], #16 \n"
+    "\t ldp x24, x25, [sp], #16 \n"
+    "\t ldp x26, x27, [sp], #16 \n"
+    "\t ldp x28, x29, [sp], #16 \n"
+    "\t ldp x1, x2, [sp], #16 \n"
+    "\t ldp x3, x4, [sp], #16 \n"
+    "\t ldp x5, x6, [sp], #16 \n"
+    "\t ldp x7, lr, [sp], #16 \n"
+    "\t ret \n"                         // return to caller
+);
+
 // MIPS
 #elif defined(__mips__)
 
